@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Image / File Upload to Google Drive</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4285F4;
+      --secondary: #34A853;
+      --accent: #EA4335;
+      --light: #f8f9fa;
+      --dark: #212529;
+      --gray: #6c757d;
+    }
+    body { font-family: 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: var(--dark); background: var(--light); max-width: 980px; margin: 0 auto; padding: 2rem; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.08); padding: 2rem; margin-bottom: 2rem; }
+    h1, h2, h3 { color: var(--primary); margin-top: 0; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: .75rem 1.2rem; border-radius: 8px; border: none; font-weight: 500; cursor: pointer; transition: .25s; margin: .25rem .25rem .25rem 0; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background:#3367d6; transform: translateY(-1px); }
+    .btn:disabled { background:#ced4da; cursor:not-allowed; }
+    .file-info { background:#f8f9fa; border-left:4px solid var(--primary); padding:1rem; border-radius:8px; margin:1rem 0; }
+    .status { padding:1rem; border-radius:8px; margin:1rem 0; display:none; }
+    .status.success { background:#e6f4ea; border-left:4px solid var(--secondary); color:#155724; }
+    .status.error { background:#fce8e6; border-left:4px solid var(--accent); color:#721c24; }
+    .loading { display:none; flex-direction:column; align-items:center; margin:1.5rem 0; }
+    .spinner { width:3rem; height:3rem; border:.25rem solid rgba(66,133,244,.3); border-top-color:var(--primary); border-radius:50%; animation: spin 1s linear infinite; margin-bottom:1rem; }
+    @keyframes spin { to { transform: rotate(360deg);} }
+    .progress-bar { width:100%; background:#e9ecef; border-radius:8px; overflow:hidden; margin-top: .5rem; }
+    .progress { height:1.1rem; background:var(--primary); width:0%; transition: width .25s; }
+    .main-tabs { display:flex; border-bottom:1px solid #dee2e6; margin-bottom:1rem; gap:.25rem; flex-wrap:wrap; }
+    .tab-btn { padding:.6rem 1rem; background:none; border:none; cursor:pointer; font-weight:500; color:var(--gray); border-bottom:3px solid transparent; transition:.2s; }
+    .tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+    .link-tabs { display:flex; border-bottom:1px solid #dee2e6; margin-bottom:1rem; gap:.25rem; flex-wrap:wrap; }
+    .link-box { margin-bottom:1rem; }
+    .link-label { font-weight:500; margin-bottom:.35rem; display:flex; align-items:center; gap:.35rem; }
+    .link-input { width:100%; padding:.6rem; border:1px solid #ced4da; border-radius:8px; font-family: monospace; margin-bottom:.4rem; }
+    .copy-btn { background:var(--primary); color:#fff; border:none; padding:.45rem .8rem; border-radius:6px; cursor:pointer; }
+    .preview-img { max-width:220px; height:auto; margin-top:.5rem; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,.08); object-fit: contain; }
+    .history-box { margin-bottom:1rem; padding:1rem; background:#f8f9fa; border-radius:8px; }
+    .history-img { max-width:120px; height:auto; border-radius:8px; margin-top:.5rem; object-fit: contain; }
+    .row { display:flex; gap:1rem; flex-wrap:wrap; }
+    .col { flex:1 1 320px; }
+    .muted { color:#6c757d; font-size:.95rem; }
+    .url-input { width:100%; padding:.65rem; border:1px solid #ced4da; border-radius:8px; }
+
+    /* Results gallery */
+    .results-card { margin-top: 1rem; }
+    .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .result-item { border:1px solid #e9ecef; border-radius:12px; padding:12px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+    .result-thumb { width:100%; height:160px; object-fit: contain; border-radius:8px; background:#fafafa; }
+    .result-meta { font-size:.92rem; margin-top:.5rem; color:#333; }
+    .result-meta .kv { display:flex; justify-content:space-between; gap:6px; }
+    .result-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:.5rem; }
+    .btn-link { padding:.35rem .6rem; font-size:.9rem; border-radius:6px; border:none; background:#eef4ff; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1><i class="material-icons">cloud_upload</i> Image / File Upload to Google Drive</h1>
+
+    <div class="main-tabs">
+      <button class="tab-btn active" onclick="switchMainTab('upload')">Upload</button>
+      <button class="tab-btn" onclick="switchMainTab('history')">Upload History</button>
+    </div>
+
+    <div id="upload-tab" class="tab-content active">
+      <div class="row">
+        <!-- Upload IMAGE from device -->
+        <div class="col">
+          <h3><i class="material-icons">image</i> Upload Images from Device</h3>
+          <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+          <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+            <i class="material-icons">image</i> Select Images
+          </button>
+          <button id="uploadBtn" class="btn btn-primary" disabled onclick="uploadFiles()">
+            <i class="material-icons">cloud_upload</i> Upload Images to Drive
+          </button>
+          <div id="fileInfo" class="file-info" style="display:none;"></div>
+        </div>
+
+        <!-- Upload IMAGE from URL -->
+        <div class="col">
+          <h3><i class="material-icons">link</i> Upload Image from URL</h3>
+          <input type="url" id="imageUrl" class="url-input" placeholder="https://example.com/image.jpg">
+          <button id="uploadUrlBtn" class="btn btn-primary" disabled onclick="uploadFromUrl()">
+            <i class="material-icons">cloud_upload</i> Upload URL to Drive
+          </button>
+          <p class="muted">
+            • ระบบจะบันทึกและคืนลิงก์แบบเดียวกับการอัปโหลดไฟล์: 
+            <b>LH3 / LH5 / Direct</b> โดย <b>LH5 Full</b> = 
+            <code>https://lh5.googleusercontent.com/d/FILE_ID</code> แสดงรูปเต็มไม่ถูกคร็อป
+          </p>
+        </div>
+
+        <!-- Deposit GENERAL FILES -->
+        <div class="col">
+          <h3><i class="material-icons">attach_file</i> Deposit General Files</h3>
+          <input type="file" id="anyFileInput" multiple style="display:none;">
+          <button class="btn btn-primary" onclick="document.getElementById('anyFileInput').click()">
+            <i class="material-icons">attach_file</i> Select Files
+          </button>
+          <button id="uploadAnyBtn" class="btn btn-primary" disabled onclick="uploadAnyFiles()">
+            <i class="material-icons">cloud_upload</i> Upload Files to Drive
+          </button>
+          <div id="anyFileInfo" class="file-info" style="display:none;"></div>
+          <p class="muted">
+            • รองรับไฟล์ทุกประเภท ขนาดไม่เกิน 10MB / ไฟล์<br>
+            • ถ้าเป็นรูปภาพ ระบบจะสร้างลิงก์ <b>LH3 / LH5</b> ให้เหมือนการอัปโหลดรูป
+          </p>
+        </div>
+      </div>
+
+      <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <div>Uploading...</div>
+        <div class="progress-bar"><div class="progress" id="progress"></div></div>
+      </div>
+
+      <div id="uploadStatus" class="status"></div>
+
+      <div id="linkSection" class="card" style="display:none; margin-top:1rem;">
+        <h2><i class="material-icons">link</i> Generated Links</h2>
+        <div class="link-tabs">
+          <button class="tab-btn active" onclick="switchLinkTab('lh3')">LH3 Links</button>
+          <button class="tab-btn" onclick="switchLinkTab('lh5')">LH5 Links</button>
+          <button class="tab-btn" onclick="switchLinkTab('direct')">Direct Links</button>
+        </div>
+
+        <div id="lh3-tab" class="tab-content active"><div id="lh3-linkContainer"></div></div>
+        <div id="lh5-tab" class="tab-content"><div id="lh5-linkContainer"></div></div>
+        <div id="direct-tab" class="tab-content"><div id="direct-linkContainer"></div></div>
+      </div>
+
+      <!-- Results thumbnails gallery (เฉพาะไฟล์รูป) -->
+      <div id="resultsCard" class="card results-card" style="display:none;">
+        <h2><i class="material-icons">photo_library</i> Upload Results (Thumbnails)</h2>
+        <div class="results-grid" id="resultsGrid"></div>
+      </div>
+    </div>
+
+    <div id="history-tab" class="tab-content">
+      <h2><i class="material-icons">history</i> Upload History</h2>
+      <div id="history-linkContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    // ใช้ URL ที่คุณให้มาเรียบร้อยแล้ว
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzHj5J7TRWxwyge9afhD5UJ-wGygD32N_XTDmf14CedIHgEojVN0Kx3de9br1dKVgfm/exec';
+
+    // เรียก Apps Script ผ่าน fetch (ใช้ text/plain เพื่อหลบ preflight CORS)
+    async function callAppsScript(action, payload = {}) {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, ...payload }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}: ${text || 'Failed to call backend'}`);
+      }
+
+      const json = await res.json().catch(() => null);
+      if (!json) throw new Error('Invalid JSON from backend');
+
+      if (json.status === 'error') {
+        throw new Error(json.message || 'Backend error');
+      }
+      return json.data;
+    }
+
+    const UI_CFG = {
+      MAX_FILE_SIZE: 10 * 1024 * 1024,
+      VALID_MIME_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    };
+
+    let selectedFiles = [];
+    let selectedAnyFiles = [];
+    let uploadResults = [];
+
+    const imageUrlInput = document.getElementById('imageUrl');
+    const uploadUrlBtn = document.getElementById('uploadUrlBtn');
+    imageUrlInput.addEventListener('input', () => {
+      uploadUrlBtn.disabled = !imageUrlInput.value.trim();
+      hideStatus();
+      hideLinks();
+      hideGallery();
+    });
+
+    // Image selection
+    document.getElementById('fileInput').addEventListener('change', function (e) {
+      selectedFiles = Array.from(e.target.files);
+      const fileInfo = document.getElementById('fileInfo');
+      fileInfo.innerHTML = '';
+      fileInfo.style.display = selectedFiles.length ? 'block' : 'none';
+
+      let allValid = selectedFiles.length > 0;
+
+      selectedFiles.forEach(file => {
+        if (!UI_CFG.VALID_MIME_TYPES.includes(file.type)) {
+          showError(`File ${file.name}: Only JPEG, PNG, GIF, WEBP allowed`);
+          allValid = false;
+          return;
+        }
+        if (file.size > UI_CFG.MAX_FILE_SIZE) {
+          showError(`File ${file.name}: File size exceeds 10MB limit`);
+          allValid = false;
+          return;
+        }
+
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.className = 'preview-img';
+        img.onload = () => URL.revokeObjectURL(img.src);
+
+        const fileDiv = document.createElement('div');
+        fileDiv.innerHTML = `
+          <p><strong><i class="material-icons">insert_drive_file</i> File:</strong> ${file.name}</p>
+          <p><strong><i class="material-icons">data_usage</i> Size:</strong> ${formatFileSize(file.size)}</p>
+          <p><strong><i class="material-icons">image</i> Type:</strong> ${file.type}</p>
+        `;
+        fileDiv.appendChild(img);
+        fileInfo.appendChild(fileDiv);
+      });
+
+      document.getElementById('uploadBtn').disabled = !allValid;
+    });
+
+    // General files selection (ANY MIME, เช็คแค่ size)
+    document.getElementById('anyFileInput').addEventListener('change', function (e) {
+      selectedAnyFiles = Array.from(e.target.files);
+      const info = document.getElementById('anyFileInfo');
+      info.innerHTML = '';
+      info.style.display = selectedAnyFiles.length ? 'block' : 'none';
+
+      let allValid = selectedAnyFiles.length > 0;
+
+      selectedAnyFiles.forEach(file => {
+        if (file.size > UI_CFG.MAX_FILE_SIZE) {
+          showError(`File ${file.name}: File size exceeds 10MB limit`);
+          allValid = false;
+          return;
+        }
+
+        const div = document.createElement('div');
+        div.innerHTML = `
+          <p><strong><i class="material-icons">insert_drive_file</i> File:</strong> ${file.name}</p>
+          <p><strong><i class="material-icons">data_usage</i> Size:</strong> ${formatFileSize(file.size)}</p>
+          <p><strong><i class="material-icons">description</i> Type:</strong> ${file.type || 'unknown'}</p>
+        `;
+        info.appendChild(div);
+      });
+
+      document.getElementById('uploadAnyBtn').disabled = !allValid;
+    });
+
+    /** Upload IMAGES from Device */
+    async function uploadFiles() {
+      if (!selectedFiles.length) { showError('No files selected'); return; }
+
+      resetProgress();
+      showLoading(true);
+      hideLinks(); hideGallery(); hideStatus();
+      uploadResults = [];
+
+      let uploadedCount = 0;
+      const total = selectedFiles.length;
+
+      for (const file of selectedFiles) {
+        await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              setProgress(percent);
+            }
+          };
+          reader.onload = () => {
+            callAppsScript('uploadFile', {
+              base64Data: reader.result,
+              fileName: file.name,
+            })
+              .then((res) => {
+                uploadResults.push(res);
+                uploadedCount++;
+                setProgress(Math.round((uploadedCount / total) * 100));
+                resolve();
+              })
+              .catch((err) => {
+                uploadResults.push({ status: 'error', message: err.message || 'Upload failed' });
+                uploadedCount++;
+                resolve();
+              });
+          };
+          reader.onerror = () => {
+            uploadResults.push({ status: 'error', message: `Failed to read file ${file.name}` });
+            uploadedCount++;
+            resolve();
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      showLoading(false);
+      renderResults(uploadResults);
+    }
+
+    /** Upload GENERAL FILES (ANY MIME) */
+    async function uploadAnyFiles() {
+      if (!selectedAnyFiles.length) {
+        showError('No files selected');
+        return;
+      }
+
+      resetProgress();
+      showLoading(true);
+      hideLinks(); hideGallery(); hideStatus();
+      uploadResults = [];
+
+      let uploadedCount = 0;
+      const total = selectedAnyFiles.length;
+
+      for (const file of selectedAnyFiles) {
+        await new Promise((resolve) => {
+          const reader = new FileReader();
+
+          reader.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              setProgress(percent);
+            }
+          };
+
+          reader.onload = () => {
+            callAppsScript('uploadAnyFile', {
+              base64Data: reader.result,
+              fileName: file.name,
+            })
+              .then((res) => {
+                uploadResults.push(res);
+                uploadedCount++;
+                setProgress(Math.round((uploadedCount / total) * 100));
+                resolve();
+              })
+              .catch((err) => {
+                uploadResults.push({ status: 'error', message: err.message || 'Upload failed' });
+                uploadedCount++;
+                resolve();
+              });
+          };
+
+          reader.onerror = () => {
+            uploadResults.push({ status: 'error', message: `Failed to read file ${file.name}` });
+            uploadedCount++;
+            resolve();
+          };
+
+          reader.readAsDataURL(file);
+        });
+      }
+
+      showLoading(false);
+      renderResults(uploadResults);
+    }
+
+    /** Upload IMAGE from URL */
+    function uploadFromUrl() {
+      const url = imageUrlInput.value.trim();
+      if (!url) return;
+
+      resetProgress();
+      showLoading(true);
+      hideLinks(); hideGallery(); hideStatus();
+
+      callAppsScript('uploadImageUrlAndGetLink', { imageUrl: url })
+        .then((res) => {
+          showLoading(false);
+          renderResults([res]);
+        })
+        .catch((err) => {
+          showLoading(false);
+          showError(err.message || 'Upload failed.');
+        });
+    }
+
+    /** Render results to link section + gallery */
+    function renderResults(results) {
+      const status = document.getElementById('uploadStatus');
+      const lh3Container = document.getElementById('lh3-linkContainer');
+      const lh5Container = document.getElementById('lh5-linkContainer');
+      const directContainer = document.getElementById('direct-linkContainer');
+      lh3Container.innerHTML = '';
+      lh5Container.innerHTML = '';
+      directContainer.innerHTML = '';
+
+      const success = results.filter(r => r && r.status === 'success');
+      const errors  = results.filter(r => !r || r.status !== 'success');
+
+      if (success.length) {
+        status.style.display = 'block';
+        status.className = 'status success';
+        status.innerHTML = `<p><strong><i class="material-icons">check_circle</i> Uploaded ${success.length} file(s) successfully!</strong></p>`;
+
+        success.forEach((r, i) => {
+          const name = r.fileInfo?.name || `file_${i+1}`;
+          const urls = r.urls || {};
+
+          // LH3 links (ถ้ามี)
+          if (urls.lh3 && urls.lh3.preview) {
+            lh3Container.appendChild(makeLinkBox(
+              `LH3 Full Image (no crop) – ${name}`, urls.lh3.preview, `lh3-preview-${i}`
+            ));
+          }
+          if (urls.lh3 && urls.lh3.thumbnail) {
+            lh3Container.appendChild(makeLinkBox(
+              `LH3 Thumbnail (proportional) – ${name}`, urls.lh3.thumbnail, `lh3-thumb-${i}`
+            ));
+          }
+
+          // LH5 links (ถ้ามี)
+          if (urls.lh5 && urls.lh5.preview) {
+            lh5Container.appendChild(makeLinkBox(
+              `LH5 Full Image (no crop) – ${name}`, urls.lh5.preview, `lh5-preview-${i}`
+            ));
+          }
+          if (urls.lh5 && urls.lh5.thumbnail) {
+            lh5Container.appendChild(makeLinkBox(
+              `LH5 Thumbnail (proportional) – ${name}`, urls.lh5.thumbnail, `lh5-thumb-${i}`
+            ));
+          }
+
+          // Direct link มีทุกไฟล์
+          if (urls.direct) {
+            directContainer.appendChild(makeLinkBox(
+              `Direct View Link – ${name}`, urls.direct, `direct-${i}`
+            ));
+          }
+        });
+
+        const hasLinks =
+          lh3Container.childElementCount ||
+          lh5Container.childElementCount ||
+          directContainer.childElementCount;
+
+        if (hasLinks) {
+          document.getElementById('linkSection').style.display = 'block';
+
+          // default tab: LH5 ถ้ามี, ถ้าไม่มีลอง LH3, ถ้าไม่มีอีกก็ Direct
+          let defaultTab = 'direct';
+          if (lh5Container.childElementCount) defaultTab = 'lh5';
+          else if (lh3Container.childElementCount) defaultTab = 'lh3';
+          switchLinkTab(defaultTab);
+
+          setTimeout(() => {
+            document.getElementById('linkSection').scrollIntoView({ behavior: 'smooth' });
+          }, 150);
+        } else {
+          document.getElementById('linkSection').style.display = 'none';
+        }
+
+        // gallery แสดงเฉพาะไฟล์ที่เป็น image
+        renderGallery(success);
+      }
+
+      if (errors.length) {
+        status.style.display = 'block';
+        status.className = 'status error';
+        status.innerHTML += errors
+          .map(e => `<p><strong><i class="material-icons">error</i></strong> ${e?.message || 'Unknown error'}</p>`)
+          .join('');
+      }
+
+      if (document.getElementById('history-tab').classList.contains('active')) {
+        loadHistory();
+      }
+    }
+
+    /** Results gallery renderer (เฉพาะ image) */
+    function renderGallery(successItems) {
+      const card = document.getElementById('resultsCard');
+      const grid = document.getElementById('resultsGrid');
+      grid.innerHTML = '';
+
+      successItems.forEach((r, i) => {
+        const info = r.fileInfo || {};
+        const isImage = (info.type || '').startsWith('image/');
+        const previewUrl = r.urls?.lh5?.preview || r.urls?.lh3?.preview;
+
+        // ถ้าไม่ใช่รูป หรือไม่มี preview image → ไม่ต้องขึ้นใน gallery
+        if (!isImage || !previewUrl) return;
+
+        const thumbSrc = toWidth(
+          r.urls?.lh5?.thumbnail || r.urls?.lh3?.thumbnail || previewUrl,
+          200
+        );
+        const fullSrc  = previewUrl;
+
+        const div = document.createElement('div');
+        div.className = 'result-item';
+        div.innerHTML = `
+          <img class="result-thumb" src="${thumbSrc}" alt="thumbnail">
+          <div class="result-meta">
+            <div class="kv"><span><b>Name</b></span><span title="${info.name || ''}">${truncate(info.name || '-', 24)}</span></div>
+            <div class="kv"><span><b>Type</b></span><span>${info.type || '-'}</span></div>
+            <div class="kv"><span><b>Size</b></span><span>${formatFileSize(info.size || 0)}</span></div>
+            <div class="kv"><span><b>File ID</b></span><span title="${info.id || ''}">${truncate(info.id || '-', 20)}</span></div>
+          </div>
+          <div class="result-actions">
+            <button class="btn-link" onclick="window.open('${fullSrc}','_blank')"><i class="material-icons" style="font-size:16px;vertical-align:middle;">open_in_new</i> Open Full</button>
+            <button class="btn-link" onclick="copyText('${fullSrc}')"><i class="material-icons" style="font-size:16px;vertical-align:middle;">content_copy</i> Copy Full</button>
+            <button class="btn-link" onclick="copyText('${r.urls?.direct || ''}')"><i class="material-icons" style="font-size:16px;vertical-align:middle;">content_copy</i> Copy Direct</button>
+            <button class="btn-link" onclick="copyText('${r.urls?.lh5?.thumbnail || r.urls?.lh3?.thumbnail || ''}')"><i class="material-icons" style="font-size:16px;vertical-align:middle;">content_copy</i> Copy Thumb</button>
+          </div>
+        `;
+        grid.appendChild(div);
+      });
+
+      if (!grid.childElementCount) {
+        card.style.display = 'none';
+      } else {
+        card.style.display = 'block';
+      }
+    }
+
+    function toWidth(url, w) {
+      if (!url) return '';
+      const base = url.split('=')[0]; // กันค่าพารามิเตอร์เก่า เช่น =w400 หรือ =s0
+      return `${base}=w${w}`;
+    }
+
+    function makeLinkBox(label, value, id) {
+      const box = document.createElement('div');
+      box.className = 'link-box';
+      box.innerHTML = `
+        <div class="link-label"><i class="material-icons">link</i> ${label}</div>
+        <input type="text" id="${id}" class="link-input" value="${value}" readonly>
+        <button class="copy-btn" onclick="copyLink('${id}')">
+          <i class="material-icons">content_copy</i> Copy
+        </button>
+      `;
+      return box;
+    }
+
+    /** History */
+    function loadHistory() {
+      callAppsScript('getUploadHistory', {})
+        .then((history) => {
+          const wrap = document.getElementById('history-linkContainer');
+          wrap.innerHTML = '';
+          if (!history || !history.length) {
+            wrap.innerHTML = '<p>No upload history available.</p>';
+            return;
+          }
+          history.forEach((h, idx) => {
+            const thumb = toWidth(h.lh5Thumbnail || h.lh3Thumbnail, 160);
+            const imgHtml = thumb
+              ? `<img src="${thumb}" class="history-img" alt="thumb">`
+              : '';
+
+            const div = document.createElement('div');
+            div.className = 'history-box';
+            div.innerHTML = `
+              <p><strong><i class="material-icons">insert_drive_file</i> File:</strong> ${h.fileName}</p>
+              <p><strong><i class="material-icons">access_time</i> Uploaded:</strong> ${h.timestamp}</p>
+              <div class="link-label"><i class="material-icons">photo_size_select_large</i> LH3 Full:</div>
+              <input type="text" id="h-lh3-full-${idx}" class="link-input" value="${h.lh3Preview}" readonly>
+              <button class="copy-btn" onclick="copyLink('h-lh3-full-${idx}')"><i class="material-icons">content_copy</i> Copy</button>
+
+              <div class="link-label"><i class="material-icons">image</i> LH3 Thumb:</div>
+              <input type="text" id="h-lh3-thumb-${idx}" class="link-input" value="${h.lh3Thumbnail}" readonly>
+              <button class="copy-btn" onclick="copyLink('h-lh3-thumb-${idx}')"><i class="material-icons">content_copy</i> Copy</button>
+
+              <div class="link-label"><i class="material-icons">photo_size_select_large</i> LH5 Full:</div>
+              <input type="text" id="h-lh5-full-${idx}" class="link-input" value="${h.lh5Preview}" readonly>
+              <button class="copy-btn" onclick="copyLink('h-lh5-full-${idx}')"><i class="material-icons">content_copy</i> Copy</button>
+
+              <div class="link-label"><i class="material-icons">image</i> LH5 Thumb:</div>
+              <input type="text" id="h-lh5-thumb-${idx}" class="link-input" value="${h.lh5Thumbnail}" readonly>
+              <button class="copy-btn" onclick="copyLink('h-lh5-thumb-${idx}')"><i class="material-icons">content_copy</i> Copy</button>
+
+              <div class="link-label"><i class="material-icons">open_in_browser</i> Direct:</div>
+              <input type="text" id="h-direct-${idx}" class="link-input" value="${h.directLink}" readonly>
+              <button class="copy-btn" onclick="copyLink('h-direct-${idx}')"><i class="material-icons">content_copy</i> Copy</button>
+
+              ${imgHtml}
+            `;
+            wrap.appendChild(div);
+          });
+        })
+        .catch((err) => {
+          document.getElementById('history-linkContainer').innerHTML =
+            `<p>Error loading history: ${err?.message || 'Unknown error'}</p>`;
+        });
+    }
+
+    /** UI helpers */
+    function switchMainTab(tab) {
+      document.querySelectorAll('.main-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector(`.main-tabs .tab-btn[onclick="switchMainTab('${tab}')"]`).classList.add('active');
+      document.getElementById(`${tab}-tab`).classList.add('active');
+      if (tab === 'history') loadHistory();
+    }
+
+    function switchLinkTab(tab) {
+      document.querySelectorAll('.link-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#linkSection .tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector(`.link-tabs .tab-btn[onclick="switchLinkTab('${tab}')"]`).classList.add('active');
+      document.getElementById(`${tab}-tab`).classList.add('active');
+    }
+
+    function showLoading(v) { document.getElementById('loading').style.display = v ? 'flex' : 'none'; }
+    function setProgress(p) { document.getElementById('progress').style.width = `${p}%`; }
+    function resetProgress() { setProgress(0); }
+    function showError(msg) {
+      const s = document.getElementById('uploadStatus');
+      s.style.display = 'block'; s.className = 'status error';
+      s.innerHTML = `<p><strong><i class="material-icons">error</i> Error:</strong> ${msg}</p>`;
+    }
+    function hideStatus() { const s = document.getElementById('uploadStatus'); s.style.display = 'none'; }
+    function hideLinks() { document.getElementById('linkSection').style.display = 'none'; }
+    function hideGallery() { document.getElementById('resultsCard').style.display = 'none'; }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function copyLink(id) {
+      const el = document.getElementById(id);
+      el.select(); document.execCommand('copy');
+      const keep = el.value; el.value = 'Copied!'; setTimeout(() => el.value = keep, 1200);
+    }
+
+    function copyText(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text || '';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+
+    function truncate(str, n) {
+      str = String(str || '');
+      return (str.length > n) ? str.slice(0, n - 1) + '…' : str;
+    }
+  </script>
+</body>
+</html>
